@@ -19,7 +19,7 @@ from isaaclab.utils import configclass
 
 #Terrain gen
 import trimesh #library outside isaaclab
-from isaaclab.terrains import TerrainImporter, TerrainImporterCfg, TerrainGeneratorCfg, SubTerrainBaseCfg
+from isaaclab.terrains import TerrainImporter, TerrainImporterCfg, TerrainGenerator, TerrainGeneratorCfg, SubTerrainBaseCfg
 from isaaclab.terrains import utils as TUtils
 import numpy as np
 
@@ -47,42 +47,17 @@ def createRuts(difficulty:float, cfg:SubTerrainBaseCfg) -> tuple[list[trimesh.Tr
     for i in range(n):
         x1 = float(i)/float(n)
         x3 = float(i+1)/float(n)
-        x2 = (x1 + x2)/2.0
+        x2 = (x1 + x3)/2.0
         vi = len(verts)
         verts += [[x1, 0.0, 0.0], [x1, 1.0, 0.0], [x2, 0.0, 0.0], [x2, 1.0, 0.0],
                   [x2, 0.0, h], [x2, 1.0, h], [x3, 0.0, h], [x3, 1.0, h],
-                  [x3, 0.0, 0.0], [x3, 1.0, 0.0]]
-        faces += [[vi, vi+1, vi+2, vi+3],
-                  [vi+2, vi+3, vi+4, vi+5],
-                  [vi+4, vi+5, vi+6, vi+7],
-                  [vi+7, vi+8, vi+9, vi+10]]
+                  [x3, 0.0, 0.0], [x3, 1.0, 0.0]] #Duplicate verticies will be merged
+        faces += [[vi, vi+1, vi+2], [vi+3, vi+2, vi+1],
+                  [vi+2, vi+3, vi+4], [vi+5, vi+4, vi+3],
+                  [vi+4, vi+5, vi+6], [vi+7, vi+6, vi+5],
+                  [vi+6, vi+7, vi+8], [vi+9, vi+8, vi+7]]
     ruts = trimesh.Trimesh(vertices = verts, faces = faces)
     return ([ruts], center)
-
-rut1 = SubTerrainBaseCfg(function = createRuts,
-                        proportion=1.0,
-                        size=(1.0, 1.0),
-                        flat_patch_sampling=None #Where to spawn robots, targets, etc (on flat patches)
-                        )
-
-
-TGenConfig = TerrainGeneratorCfg(seed = None,
-                                curriculum=False, #Whether or not to use difficulty levels
-                                size=(1.0,1.0), #Subterrain size, meters
-                                border_width=0.0, 
-                                border_height=1.0,
-                                num_rows=1,
-                                num_cols=1,
-                                color_scheme="height",
-                                horizontal_scale=0.1,
-                                vertical_scale=0.005,
-                                slope_threshold=None, #Don't make slopes vertical
-                                sub_terrains={
-                                    "rut1":rut1
-                                },
-                                difficulty_range=(0.0, 1.0)
-                                )
-TConfig = TerrainImporterCfg(terrain_type="generator", terrain_generator=TGenConfig)
 
 @configclass
 class B1WalkSceneCfg(InteractiveSceneCfg):
@@ -104,7 +79,38 @@ class B1WalkSceneCfg(InteractiveSceneCfg):
     )
 
     #Terrain (ruts)
-    terrain = TerrainImporter(TConfig)
+    rut1 = SubTerrainBaseCfg(function = createRuts,
+                            proportion=1.0,
+                            size=(1.0, 1.0),
+                            flat_patch_sampling=None #Where to spawn robots, targets, etc (on flat patches)
+                            )
+
+
+    TGenConfig = TerrainGeneratorCfg(seed = None,
+                                    curriculum=False, #Whether or not to use difficulty levels
+                                    size=(1.0,1.0), #Subterrain size, meters
+                                    border_width=0.0, 
+                                    border_height=1.0,
+                                    num_rows=1,
+                                    num_cols=1,
+                                    color_scheme="height",
+                                    horizontal_scale=0.1,
+                                    vertical_scale=0.005,
+                                    slope_threshold=None, #Don't make slopes vertical
+                                    sub_terrains={
+                                        "rut1":rut1
+                                    },
+                                    difficulty_range=(0.0, 1.0)
+                                    )
+
+    terrain = TerrainImporterCfg(collision_group=-1,
+                                prim_path="/World/terrain",
+                                terrain_type="generator",
+                                terrain_generator=TGenConfig,
+                                max_init_terrain_level=None,
+                                visual_material=None, #Default
+                                debug_vis=True
+                                )
 
 
 ##
@@ -214,7 +220,7 @@ class TerminationsCfg:
 @configclass
 class B1WalkEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=512, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
