@@ -15,7 +15,7 @@ with `Isaac` in their name.
 
 """Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher  # warning
 
 # launch omniverse app
 app_launcher = AppLauncher(headless=True)
@@ -44,9 +44,16 @@ def main():
     index = 0
     # acquire all Isaac environments names
     for task_spec in gym.registry.values():
-        if "Template-" in task_spec.id:
+        if task_spec.id[:3] == "B1-":  # use prefix matching instead
             # add details to table
-            table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec.kwargs["env_cfg_entry_point"]])
+            table.add_row(
+                [
+                    index + 1,
+                    task_spec.id,
+                    task_spec.entry_point,
+                    task_spec.kwargs["env_cfg_entry_point"],
+                ]
+            )
             # increment count
             index += 1
 

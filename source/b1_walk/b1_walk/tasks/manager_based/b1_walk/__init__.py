@@ -13,7 +13,7 @@ from . import agents
 
 
 gym.register(
-    id="Template-B1-Walk-v0",
+    id="B1-Test-Env",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
