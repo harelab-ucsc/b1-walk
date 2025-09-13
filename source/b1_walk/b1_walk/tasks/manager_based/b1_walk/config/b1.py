@@ -78,8 +78,8 @@ B1_CFG = ArticulationCfg(
             joint_names_expr=[".*_hip_joint", ".*_thigh_joint", ".*_calf_joint"],
             effort_limit_sim=20000.0,
             velocity_limit_sim=100.0,
-            stiffness=250.0,
-            damping=1.0,
+            stiffness=800.0,
+            damping=25.0,
         ),
     },
 )

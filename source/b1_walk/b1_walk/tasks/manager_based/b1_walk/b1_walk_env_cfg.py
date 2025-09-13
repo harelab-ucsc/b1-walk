@@ -12,6 +12,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
@@ -35,22 +36,19 @@ from b1_walk.tasks.manager_based.b1_walk.config.b1 import B1_CFG  # isort:skip
 class B1WalkSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
-    # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(10.0, 10.0), color=(255, 255, 255)),
+        spawn=sim_utils.GroundPlaneCfg(size=(50.0, 50.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
     )
 
-    # default robot
-    # robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
-    # our cool ass B1 robot
-    robot: ArticulationCfg = B1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # bot
+    robot: ArticulationCfg = B1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")  # type: ignore
 
     # lights
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+        spawn=sim_utils.DomeLightCfg(intensity=5000.0),
     )
 
 
@@ -63,9 +61,34 @@ class B1WalkSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(
-        asset_name="robot", joint_names=[".*[LR]_hip_joint"], scale=100.0
+    leg_effort: ActionTerm = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=[  # FL -> FR -> RL -> RR  and  hip -> thigh -> calf
+            "FL_hip_joint",
+            "FL_thigh_joint",
+            "FL_calf_joint",
+            "FR_hip_joint",
+            "FR_thigh_joint",
+            "FR_calf_joint",
+            "RL_hip_joint",
+            "RL_thigh_joint",
+            "RL_calf_joint",
+            "RR_hip_joint",
+            "RR_thigh_joint",
+            "RR_calf_joint",
+        ],
+        scale=1,
+        use_default_offset=True,
+        preserve_order=True,  # keep on for model transfer
+        debug_vis=True,
     )
+
+
+@configclass
+class CommandsCfg:
+    """Eventual velocity commands"""
+
+    pass  # TODO: shit
 
 
 @configclass
@@ -77,8 +100,8 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)  # TODO: add unoise
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)  # TODO: add unoise
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -93,25 +116,39 @@ class EventCfg:
     """Configuration for events."""
 
     # reset
-    reset_hip_position = EventTerm(
+    reset_all_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*[LR]_hip_joint"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.5, 0.5),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*_joint"]),
+            "position_range": (-0.5, 0.5),
+            "velocity_range": (-0.25, 0.25),
         },
     )
 
-    # reset_pole_position = EventTerm(
-    #     func=mdp.reset_joints_by_offset,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-    #         "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-    #         "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
-    #     },
-    # )
+    reset_robot_position = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pose_range": {
+                "x": (-0.5, 0.5),  # 1m total
+                "y": (-0.5, 0.5),  # 1m total
+                "z": (0.0, 0.0),  # no offset
+                "roll": (0.0, 0.0),
+                "pitch": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
+            },
+            "velocity_range": {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+                "roll": (0.0, 0.0),
+                "pitch": (0.0, 0.0),
+                "yaw": (0.0, 0.0),
+            },
+        },
+    )
 
 
 @configclass
@@ -123,33 +160,6 @@ class RewardsCfg:
     # (2) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
-    # (3) Primary task: keep pole upright
-
-    # pole_pos = RewTerm(
-    #     func=mdp.joint_pos_target_l2,
-    #     weight=-1.0,
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-    #         "target": 0.0,
-    #     },
-    # )
-
-    # (4) Shaping tasks: lower cart velocity
-
-    # cart_vel = RewTerm(
-    #     func=mdp.joint_vel_l1,
-    #     weight=-0.01,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
-    # )
-
-    # (5) Shaping tasks: lower pole angular velocity
-
-    # pole_vel = RewTerm(
-    #     func=mdp.joint_vel_l1,
-    #     weight=-0.005,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
-    # )
-
 
 @configclass
 class TerminationsCfg:
@@ -157,15 +167,6 @@ class TerminationsCfg:
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-
-    # (2) Cart out of bounds
-    # cart_out_of_bounds = DoneTerm(
-    #     func=mdp.joint_pos_out_of_manual_limit,
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-    #         "bounds": (-3.0, 3.0),
-    #     },
-    # )
 
 
 ##
@@ -176,14 +177,15 @@ class TerminationsCfg:
 @configclass
 class B1WalkEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=1, env_spacing=4.0)
+    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=512, env_spacing=2.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
+    commands: CommandsCfg = CommandsCfg()
     actions: ActionsCfg = ActionsCfg()
-    events: EventCfg = EventCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
 
     # Post initialization
     def __post_init__(self) -> None:
