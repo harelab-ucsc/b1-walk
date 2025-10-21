@@ -177,7 +177,7 @@ class TerminationsCfg:
 @configclass
 class B1WalkEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=512, env_spacing=2.0)
+    scene: B1WalkSceneCfg = B1WalkSceneCfg(num_envs=32, env_spacing=3)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
